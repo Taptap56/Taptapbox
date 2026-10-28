@@ -329,11 +329,7 @@ func TestValidateJarDex(t *testing.T) {
 
 func TestPickAsset(t *testing.T) {
 	rel := &ghRelease{TagName: "v9.9.9"}
-	rel.Assets = []struct {
-		Name               string `json:"name"`
-		BrowserDownloadURL string `json:"browser_download_url"`
-		Size               int64  `json:"size"`
-	}{
+	rel.Assets = []ghAsset{
 		{Name: "sing-box-9.9.9-linux-amd64.tar.gz", BrowserDownloadURL: "http://x/linux"},
 		{Name: "sing-box-9.9.9-android-arm64.tar.gz", BrowserDownloadURL: "http://x/arm64"},
 	}
@@ -1122,6 +1118,24 @@ func TestHandleSelfReleaseFakeGitHub(t *testing.T) {
 	}
 }
 
+
+
+func TestPickSelfReleaseAssetArch(t *testing.T) {
+	rel := &ghRelease{TagName: "v1.0.0", Assets: []ghAsset{
+		{Name: "taptapbox-go-v1.0.0-arm64.zip", BrowserDownloadURL: "http://x/arm64", Size: 10},
+		{Name: "taptapbox-go-v1.0.0-v7a.zip", BrowserDownloadURL: "http://x/v7a", Size: 11},
+		{Name: "taptapbox-go-v1.0.0.zip", BrowserDownloadURL: "http://x/single", Size: 12},
+	}}
+	if name, _, url := pickSelfReleaseAsset(rel, "arm64"); name != "taptapbox-go-v1.0.0-arm64.zip" || url != "http://x/arm64" {
+		t.Fatalf("arm64 harus dapat aset arm64, dapat %q %q", name, url)
+	}
+	if name, _, url := pickSelfReleaseAsset(rel, "arm"); name != "taptapbox-go-v1.0.0-v7a.zip" || url != "http://x/v7a" {
+		t.Fatalf("arm harus dapat aset v7a, dapat %q %q", name, url)
+	}
+	if name, _, _ := pickSelfReleaseAsset(rel, "amd64"); name != "taptapbox-go-v1.0.0.zip" {
+		t.Fatalf("arsitektur lain harus fallback ke aset tanpa akhiran, dapat %q", name)
+	}
+}
 
 func TestHandleSelfReleaseGoAsset(t *testing.T) {
 	// Repo Taptapbox menerbitkan aset taptapbox-go-<tag>.zip (bukan
