@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Chipset GO</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#07090d;overflow:hidden}
+  #fxwrap{position:fixed;inset:0}
+  #fx{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<div id="fxwrap"><canvas id="fx"></canvas></div>
+<script>
+// Chipset GO — nuansa Bumi AI: ruang angkasa, nebula, atmosfer, busur data berekor api,
+// ledakan di tumbukan, petir = kecepatan Go. Kanvas mandiri tanpa dependensi.
+(function () {
+  const canvas = document.getElementById('fx');
+  const ctx = canvas.getContext('2d');
+  const TAU = Math.PI * 2;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const T = 0.16; // setengah tebal chip
+  let W = 0, H = 0, S = 100, cx = 0, cy = 0, neb = null, stars = [];
+  const density = () => Math.min(1, W / 900 + 0.4);
+
+  function buildNeb() {
+    neb = document.createElement('canvas');
+    neb.width = Math.max(2, W | 0); neb.height = Math.max(2, H | 0);
+    const n = neb.getContext('2d'); n.globalCompositeOperation = 'lighter';
+    const nc = ['34,120,220', '30,160,200', '110,80,220', '20,70,150', '200,70,220'];
+    for (let k = 0; k < 150; k++) {
+      const big = k < 10, r = big ? rnd(120, 300) : rnd(25, 70), x = rnd(0, W), y = rnd(0, H), c = nc[(Math.random() * nc.length) | 0];
+      const g = n.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(' + c + ',' + (big ? .2 : .05) + ')'); g.addColorStop(1, 'rgba(' + c + ',0)');
+      n.fillStyle = g; n.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+  }
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    S = Math.min(W / 6.4, H / 6.8); cx = W / 2; cy = H * 0.43;
+    stars = Array.from({ length: Math.round(90 * density()) }, () => ({ x: rnd(0, W), y: rnd(0, H), r: rnd(.35, 1.5), ph: rnd(0, TAU), sp: rnd(.01, .04), v: rnd(.02, .12), k: (Math.random() * 4) | 0 }));
+    buildNeb();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---- proyeksi 3D: chip bergoyang pelan, papan di bidang xz ----
+  let ca = 1, sa = 0, ct = 1, st = 0;
+  const P = (x, y, z) => {
+    const xr = x * ca + z * sa, zr = z * ca - x * sa;
+    return [cx + xr * S, cy - (y * ct - zr * st) * S, y * st + zr * ct];
+  };
+
+  // ---- data ----
+  const nodes = Array.from({ length: 10 }, (_, i) => {
+    const a = i / 10 * TAU + rnd(-.12, .12), r = rnd(2.0, 2.4), m = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+    return { x: Math.cos(a) * r, z: Math.sin(a) * r, gx: Math.cos(a) / m * 1.28, gz: Math.sin(a) / m * 1.28, cv: i % 2 ? 1 : -1, ph: rnd(0, TAU), sx: 0, sy: 0, dz: 0 };
+  });
+  const newArc = () => ({ n: (Math.random() * nodes.length) | 0, t: -rnd(.2, 2.2), sp: rnd(.022, .036) });
+  const arcs = Array.from({ length: 4 }, newArc);
+  const flashes = [], zaps = [];
+  const FIRE = [
+    [4.2, [[0, 'rgba(34,211,238,.35)'], [.5, 'rgba(167,139,250,.22)'], [1, 'rgba(217,70,239,0)']]],
+    [2, [[0, 'rgba(200,250,255,.85)'], [.45, 'rgba(34,211,238,.6)'], [1, 'rgba(217,70,239,0)']]],
+    [1, [[0, '#fff'], [.35, 'rgba(210,250,255,.9)'], [1, 'rgba(120,235,255,0)']]]
+  ];
+  let tm = 0, last = 0, pulse = 0, nextL = 60;
+
+  // ---- petir: midpoint displacement ----
+  function makeBolt(x1, y1, x2, y2, disp) {
+    let pts = [[x1, y1], [x2, y2]];
+    for (let it = 0; it < 5; it++) {
+      const np = [pts[0]];
+      for (let i = 1; i < pts.length; i++) {
+        const ax = pts[i - 1][0], ay = pts[i - 1][1], bx = pts[i][0], by = pts[i][1];
+        const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1, off = (Math.random() - .5) * disp;
+        np.push([(ax + bx) / 2 - dy / len * off, (ay + by) / 2 + dx / len * off], [bx, by]);
+      }
+      pts = np; disp *= .55;
+    }
+    return pts;
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  const fillPoly = pts => { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill(); };
+
+  // ---- latar: bintang berkelip + nebula ----
+  function drawSky() {
+    ctx.globalAlpha = 1; ctx.drawImage(neb, 0, 0, W, H);
+    const tints = ['255,255,255', '186,214,255', '214,196,255', '255,232,205'];
+    for (const s of stars) {
+      s.x -= s.v; if (s.x < -6) { s.x = W + 6; s.y = rnd(0, H); }
+      s.ph += s.sp;
+      const a = .22 + .7 * Math.abs(Math.sin(s.ph)), c = tints[s.k];
+      ctx.fillStyle = 'rgba(' + c + ',' + a + ')'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+      if (s.r > 1.15) {
+        ctx.strokeStyle = 'rgba(' + c + ',' + (a * .5) + ')'; ctx.lineWidth = .7; ctx.beginPath();
+        ctx.moveTo(s.x - s.r * 4, s.y); ctx.lineTo(s.x + s.r * 4, s.y); ctx.moveTo(s.x, s.y - s.r * 4); ctx.lineTo(s.x, s.y + s.r * 4); ctx.stroke();
+      }
+    }
+  }
+  function drawAtmos() {
+    const c0 = P(0, 0, 0);
+    let g = ctx.createRadialGradient(c0[0], c0[1], S * .8, c0[0], c0[1], S * 2.8);
+    g.addColorStop(0, 'rgba(34,211,238,' + (.12 + pulse * .08) + ')'); g.addColorStop(.4, 'rgba(167,139,250,.05)'); g.addColorStop(1, 'rgba(167,139,250,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c0[0], c0[1], S * 2.8, 0, TAU); ctx.fill();
+  }
+  function drawBoard() {
+    const R = 3.4, GY = -T - .04, seg = 8; ctx.lineWidth = 1;
+    for (let i = -5; i <= 5; i++) {
+      const c = i * .6;
+      for (let dir = 0; dir < 2; dir++) for (let k = 0; k < seg; k++) {
+        const a0 = -R + 2 * R * k / seg, a1 = -R + 2 * R * (k + 1) / seg, m = (a0 + a1) / 2, al = .07 * Math.max(0, 1 - Math.hypot(c, m) / R);
+        if (al < .006) continue;
+        const p0 = dir ? P(c, GY, a0) : P(a0, GY, c), p1 = dir ? P(c, GY, a1) : P(a1, GY, c);
+        ctx.strokeStyle = 'rgba(56,189,248,' + al + ')'; ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+      }
+    }
+    // jejak sirkuit + node I/O berdenyut
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i], p = P(n.x, GY, n.z), q = P(n.gx, GY, n.gz);
+      n.sx = p[0]; n.sy = p[1]; n.dz = p[2];
+      ctx.strokeStyle = 'rgba(34,211,238,.13)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+      const pul = 3 + 2 * Math.abs(Math.sin(tm * .04 + i));
+      ctx.fillStyle = 'rgba(217,70,239,.28)'; ctx.beginPath(); ctx.arc(p[0], p[1], pul + 2, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(p[0], p[1], 1.8, 0, TAU); ctx.fill();
+    }
+  }
+  // cincin orbit (separuh belakang / depan) + satelit
+  function drawRings(front) {
+    const rings = [{ r: 1.7, y: .35, d: [2, 9], s: 1 }];
+    ctx.lineWidth = 1;
+    for (const rg of rings) {
+      ctx.setLineDash(rg.d); ctx.strokeStyle = 'rgba(34,211,238,.16)'; ctx.beginPath();
+      let pen = false;
+      for (let k = 0; k <= 64; k++) {
+        const a = k / 64 * TAU, p = P(Math.cos(a) * rg.r, rg.y, Math.sin(a) * rg.r);
+        if ((p[2] >= 0) === front) { pen ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); pen = true; } else pen = false;
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+      const sa2 = tm * .014 * rg.s, sp = P(Math.cos(sa2) * rg.r, rg.y, Math.sin(sa2) * rg.r);
+      if ((sp[2] >= 0) === front) {
+        ctx.fillStyle = '#a78bfa'; ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(sp[0], sp[1], rg.s > 0 ? 3 : 2.2, 0, TAU); ctx.fill(); ctx.shadowBlur = 0;
+      }
+    }
+  }
+
+  // ---- chip ----
+  function drawChip() {
+    // kaki pin (di bidang tengah chip), lampu mengalir
+    const nPin = 9;
+    for (let side = 0; side < 4; side++) for (let i = 0; i < nPin; i++) {
+      const s = -1 + (i + .5) * 2 / nPin, w = .035, a = 1.0, b = 1.3;
+      let q;
+      if (side === 0) q = [[s - w, -a], [s + w, -a], [s + w, -b], [s - w, -b]];
+      else if (side === 1) q = [[a, s - w], [a, s + w], [b, s + w], [b, s - w]];
+      else if (side === 2) q = [[s - w, a], [s + w, a], [s + w, b], [s - w, b]];
+      else q = [[-a, s - w], [-a, s + w], [-b, s + w], [-b, s - w]];
+      ctx.fillStyle = '#8b98ad'; fillPoly(q.map(c => P(c[0], 0, c[1])));
+      const lit = Math.pow(Math.max(0, Math.sin(tm * .14 - i * .7 + side * 1.6)), 6) * .6 + pulse * .2;
+      if (lit > .03) {
+        const e = P((q[2][0] + q[3][0]) / 2, 0, (q[2][1] + q[3][1]) / 2);
+        ctx.fillStyle = 'rgba(34,211,238,' + Math.min(1, lit) + ')'; ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(e[0], e[1], 2.2, 0, TAU); ctx.fill(); ctx.shadowBlur = 0;
+      }
+    }
+    // sisi samping yang menghadap penonton
+    const cs = [[-1, -1], [1, -1], [1, 1], [-1, 1]], nm = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    for (let i = 0; i < 4; i++) {
+      const nz = (nm[i][1] * ca - nm[i][0] * sa) * ct; if (nz <= .01) continue;
+      const c0 = cs[i], c1 = cs[(i + 1) % 4], sh = 22 + nz * 46;
+      ctx.fillStyle = 'rgb(' + (sh * .8 | 0) + ',' + (sh | 0) + ',' + (sh * 1.5 | 0) + ')';
+      fillPoly([P(c0[0], T, c0[1]), P(c1[0], T, c1[1]), P(c1[0], -T, c1[1]), P(c0[0], -T, c0[1])]);
+      const a = P(c0[0], T, c0[1]), b = P(c1[0], T, c1[1]);
+      ctx.strokeStyle = 'rgba(120,200,255,' + (.35 + pulse * .3) + ')'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    // permukaan atas: digambar di koordinat lokal (-1..1) dengan transform affine
+    const O = P(0, T, 0), X = P(1, T, 0), Z = P(0, T, 1);
+    ctx.save();
+    ctx.transform(X[0] - O[0], X[1] - O[1], Z[0] - O[0], Z[1] - O[1], O[0], O[1]);
+    const g = ctx.createLinearGradient(-1, -1, 1, 1);
+    g.addColorStop(0, '#2b3550'); g.addColorStop(.5, '#161d2e'); g.addColorStop(1, '#0b0f19');
+    roundRect(-1, -1, 2, 2, .1); ctx.fillStyle = g;
+    ctx.shadowColor = 'rgba(34,211,238,' + (.3 + pulse * .45) + ')'; ctx.shadowBlur = 18 + pulse * 46; ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(120,200,255,.4)'; ctx.lineWidth = .022; ctx.stroke();
+    // kilau cahaya yang menyapu
+    ctx.save(); roundRect(-1, -1, 2, 2, .1); ctx.clip();
+    const s = .5 + .5 * Math.sin(tm * .01), sx = -1.8 + 3.6 * s, sg = ctx.createLinearGradient(sx, -1, sx + .9, 1);
+    sg.addColorStop(0, 'rgba(180,230,255,0)'); sg.addColorStop(.5, 'rgba(180,230,255,.17)'); sg.addColorStop(1, 'rgba(180,230,255,0)');
+    ctx.fillStyle = sg; ctx.fillRect(-1, -1, 2, 2);
+    // jalur sirkuit dari die ke tepi
+    ctx.strokeStyle = 'rgba(34,211,238,' + (.14 + pulse * .22) + ')'; ctx.lineWidth = .014; ctx.beginPath();
+    for (let i = 0; i < 9; i++) {
+      const p = -1 + (i + .5) * 2 / 9, q = p * .62;
+      ctx.moveTo(q, -.62); ctx.lineTo(p, -.8); ctx.lineTo(p, -.94);
+      ctx.moveTo(q, .62); ctx.lineTo(p, .8); ctx.lineTo(p, .94);
+      ctx.moveTo(-.62, q); ctx.lineTo(-.8, p); ctx.lineTo(-.94, p);
+      ctx.moveTo(.62, q); ctx.lineTo(.8, p); ctx.lineTo(.94, p);
+    }
+    ctx.stroke(); ctx.restore();
+    // die dalam
+    roundRect(-.62, -.62, 1.24, 1.24, .06); ctx.fillStyle = '#05080f'; ctx.fill();
+    ctx.strokeStyle = 'rgba(34,211,238,' + (.35 + pulse * .3) + ')'; ctx.lineWidth = .02; ctx.stroke();
+    // tulisan GO (font di-skala agar tajam)
+    ctx.save(); ctx.scale(.01, .01);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tg = ctx.createLinearGradient(0, -30, 0, 30);
+    tg.addColorStop(0, '#a5f3fc'); tg.addColorStop(.55, '#22d3ee'); tg.addColorStop(1, '#a78bfa');
+    ctx.fillStyle = tg; ctx.shadowColor = 'rgba(34,211,238,' + (.6 + pulse * .4) + ')'; ctx.shadowBlur = 14 + pulse * 40;
+    ctx.font = '900 56px system-ui,sans-serif'; ctx.fillText('GO', 0, -6);
+    ctx.shadowBlur = 0; ctx.font = '600 11px system-ui,sans-serif'; ctx.fillStyle = 'rgba(165,243,252,.75)'; ctx.fillText('L  A  N  G', 0, 34);
+    ctx.restore();
+    // penanda pin-1
+    ctx.fillStyle = 'rgba(34,211,238,.85)'; ctx.beginPath(); ctx.arc(-.82, -.82, .035, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  // ---- arus listrik cepat: kilatan zigzag tipis menyusuri jejak menuju pin ----
+  function drawArc(A) {
+    if (A.t <= 0) return;
+    const n = nodes[A.n], t1 = Math.min(1, A.t), t0 = Math.max(0, t1 - .24), pts = [];
+    for (let k = 0; k <= 6; k++) {
+      const t = t0 + (t1 - t0) * k / 6, j = k === 0 || k === 6 ? 0 : (Math.random() - .5) * S * .035;
+      const x = n.x + (n.gx - n.x) * t, z = n.z + (n.gz - n.z) * t, ex = n.gx - n.x, ez = n.gz - n.z, el = Math.hypot(ex, ez) || 1;
+      const p = P(x, 0, z); pts.push([p[0] - ez / el * j, p[1] + ex / el * j]);
+    }
+    const hx = pts[6][0], hy = pts[6][1];
+    const g = ctx.createLinearGradient(hx, hy, pts[0][0], pts[0][1]);
+    g.addColorStop(0, 'rgba(234,253,255,.95)'); g.addColorStop(.45, 'rgba(34,211,238,.55)'); g.addColorStop(1, 'rgba(34,211,238,0)');
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = g; ctx.lineWidth = 1.6; ctx.beginPath();
+    pts.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.stroke();
+    const hg = ctx.createRadialGradient(hx, hy, 0, hx, hy, 9);
+    hg.addColorStop(0, 'rgba(160,240,255,.5)'); hg.addColorStop(1, 'rgba(160,240,255,0)');
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(hx, hy, 9, 0, TAU); ctx.fill();
+  }
+  function drawFlash(f) {
+    const p = P(f.x, 0, f.z), k = f.age / 12, r = S * (.12 + .22 * k);
+    const g = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], r);
+    g.addColorStop(0, 'rgba(255,255,255,' + .8 * (1 - k) + ')'); g.addColorStop(.5, 'rgba(34,211,238,' + .4 * (1 - k) + ')'); g.addColorStop(1, 'rgba(34,211,238,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, TAU); ctx.fill();
+  }
+  // percikan listrik pendek di tepi chip
+  function spawnZap() {
+    const side = (Math.random() * 4) | 0, s = rnd(-.8, .8), o = side < 2 ? -1 : 1;
+    const c = side % 2 ? [o === 1 ? 1 : -1, s] : [s, o === 1 ? 1 : -1];
+    const out = side % 2 ? [c[0] * 1.34, s + rnd(-.18, .18)] : [s + rnd(-.18, .18), c[1] * 1.34];
+    const a = P(c[0], T, c[1]), b = P(out[0], 0, out[1]);
+    zaps.push({ pts: makeBolt(a[0], a[1], b[0], b[1], S * .1), life: 0, max: rnd(7, 11) });
+    pulse = Math.min(1.1, pulse + .4);
+  }
+
+  function frame() {
+    const now = performance.now(), dt = last ? Math.min(3, (now - last) / 16.667) : 1; last = now;
+    tm += dt;
+    ca = 1; sa = 0; ct = 0; st = 1; // tampak depan, tegak
+    ctx.clearRect(0, 0, W, H); ctx.globalAlpha = 1;
+
+    drawSky(); drawAtmos(); drawBoard();
+    drawChip();
+
+    ctx.globalCompositeOperation = 'lighter';
+    drawRings(true);
+    for (let i = 0; i < arcs.length; i++) {
+      const A = arcs[i]; drawArc(A); A.t += A.sp * dt;
+      if (A.t >= 1) { const n = nodes[A.n]; flashes.push({ x: n.gx, z: n.gz, age: 0 }); pulse = Math.min(1.1, pulse + .2); arcs[i] = newArc(); }
+    }
+    for (let i = flashes.length - 1; i >= 0; i--) {
+      const f = flashes[i]; f.age += dt; if (f.age > 12) { flashes.splice(i, 1); continue; }
+      drawFlash(f);
+    }
+    nextL -= dt; if (nextL <= 0) { nextL = rnd(50, 120); spawnZap(); }
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (let i = zaps.length - 1; i >= 0; i--) {
+      const z = zaps[i]; z.life += dt; const k = 1 - z.life / z.max; if (k <= 0) { zaps.splice(i, 1); continue; }
+      ctx.globalAlpha = k;
+      for (const w of [['rgba(34,211,238,.25)', 4], ['rgba(234,253,255,.95)', 1.1]]) {
+        ctx.strokeStyle = w[0]; ctx.lineWidth = w[1]; ctx.beginPath();
+        z.pts.forEach((p, j) => j ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    pulse *= Math.pow(.9, dt);
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+</script>
+</body>
+</html>
