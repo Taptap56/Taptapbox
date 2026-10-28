@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Kue Cookie AI</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#07090d;overflow:hidden}
+  #fxwrap{position:fixed;inset:0}
+  #cookie-canvas{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<div id="fxwrap"><canvas id="cookie-canvas"></canvas></div>
+<script>
+(function(){
+  "use strict";
+  const canvas = document.getElementById('cookie-canvas');
+  const ctx = canvas.getContext('2d');
+  const TAU = Math.PI * 2;
+  const rnd = (a,b)=>a+Math.random()*(b-a);
+
+  let W=0,H=0;
+  function resize(){
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const box=canvas.parentElement;
+    W=box.clientWidth||window.innerWidth;
+    H=box.clientHeight||window.innerHeight;
+    canvas.style.width='100%';canvas.style.height='100%';
+    canvas.width=W*dpr;canvas.height=H*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    layout();
+  }
+  window.addEventListener('resize',resize);
+
+  // --- cookie (seeded biar chips & trace stabil, tidak kedip) ---
+  let R=0,cx=0,cy=0,chips=[],traces=[];
+  function mulberry(seed){let t=seed>>>0;return function(){t+=0x6D2B79F5;let r=Math.imul(t^t>>>15,1|t);r^=r+Math.imul(r^r>>>7,61|r);return((r^r>>>14)>>>0)/4294967296;};}
+  function layout(){
+    R=Math.min(W,H)*0.30; cx=W/2; cy=H/2;
+    const s=mulberry(20261012);
+    chips=[];
+    for(let i=0;i<16;i++){
+      const a=s()*TAU, d=Math.sqrt(s())*R*0.72;
+      chips.push({x:Math.cos(a)*d,y:Math.sin(a)*d,r:R*rnd(0.055,0.10)});
+    }
+    // trace sirkuit: dari tepi kue keluar dengan belokan siku, ujung = node neon
+    traces=[];
+    const N=10;
+    for(let i=0;i<N;i++){
+      const a=(i/N)*TAU + s()*0.25;
+      const segs=[];let x=Math.cos(a)*R*0.98,y=Math.sin(a)*R*0.98;
+      segs.push([x,y]);
+      const out=R*rnd(0.35,0.6);
+      x+=Math.cos(a)*out; y+=Math.sin(a)*out; segs.push([x,y]);
+      const turn=s()<0.5?1:-1, perp=a+turn*Math.PI/2, out2=R*rnd(0.25,0.5);
+      x+=Math.cos(perp)*out2; y+=Math.sin(perp)*out2; segs.push([x,y]);
+      traces.push({pts:segs,hue:215+s()*70,ph:s()*TAU,rot:s()*0.4+0.1});
+    }
+  }
+
+  // --- partikel neon melayang ---
+  const P=[];
+  function mkP(init){return{x:rnd(0,W),y:init?rnd(0,H):rnd(H+10,H+60),r:rnd(1,2.6),
+    vy:rnd(0.15,0.55),sw:rnd(6,26),ph:rnd(0,TAU),sp:rnd(0.008,0.02),
+    hue:rnd(210,285),a:rnd(0.25,0.7)};}
+  function seedP(){P.length=0;const n=Math.round(Math.min(1,Math.min(W,H)/700+0.4)*70);
+    for(let i=0;i<n;i++)P.push(mkP(true));}
+
+  function glowDot(x,y,r,hue,alpha){
+    const g=ctx.createRadialGradient(x,y,0,x,y,r*3.2);
+    g.addColorStop(0,'hsla('+hue+',100%,70%,'+alpha+')');
+    g.addColorStop(0.35,'hsla('+hue+',100%,60%,'+(alpha*0.45)+')');
+    g.addColorStop(1,'hsla('+hue+',100%,60%,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r*3.2,0,TAU);ctx.fill();
+    ctx.fillStyle='hsla('+hue+',100%,88%,'+Math.min(1,alpha+0.25)+')';
+    ctx.beginPath();ctx.arc(x,y,r*0.7,0,TAU);ctx.fill();
+  }
+
+  function drawCookie(t){
+    const bob=Math.sin(t*0.9)*R*0.02;
+    const y=cy+bob;
+    // halo lembut di belakang kue
+    const halo=ctx.createRadialGradient(cx,y,R*0.2,cx,y,R*2.1);
+    halo.addColorStop(0,'rgba(90,60,220,0.16)');halo.addColorStop(1,'rgba(90,60,220,0)');
+    ctx.fillStyle=halo;ctx.beginPath();ctx.arc(cx,y,R*2.1,0,TAU);ctx.fill();
+
+    ctx.save();ctx.translate(cx,y);
+    // pinggir kue bergerigi halus
+    ctx.beginPath();
+    const teeth=26;
+    for(let i=0;i<=teeth;i++){
+      const a=(i/teeth)*TAU;
+      const rr=R*(1+0.035*Math.sin(a*7+t*0.6));
+      const px=Math.cos(a)*rr,py=Math.sin(a)*rr;
+      i?ctx.lineTo(px,py):ctx.moveTo(px,py);
+    }
+    ctx.closePath();
+    const body=ctx.createRadialGradient(-R*0.25,-R*0.3,R*0.1,0,0,R*1.05);
+    body.addColorStop(0,'#d99a55');body.addColorStop(0.55,'#b67a3c');body.addColorStop(1,'#7c4d22');
+    ctx.fillStyle=body;ctx.fill();
+    ctx.strokeStyle='rgba(60,32,10,0.6)';ctx.lineWidth=Math.max(2,R*0.02);ctx.stroke();
+
+    // chips coklat
+    for(const c of chips){
+      ctx.fillStyle='#3d2210';
+      ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,TAU);ctx.fill();
+      ctx.fillStyle='rgba(255,220,170,0.25)';
+      ctx.beginPath();ctx.arc(c.x-c.r*0.3,c.y-c.r*0.35,c.r*0.35,0,TAU);ctx.fill();
+    }
+
+    // trace sirkuit berputar pelan + node berdenyut
+    for(const tr of traces){
+      const rot=t*tr.rot*0.25;
+      ctx.save();ctx.rotate(rot);
+      ctx.strokeStyle='hsla('+tr.hue+',90%,65%,0.75)';
+      ctx.lineWidth=Math.max(1.5,R*0.012);ctx.lineJoin='round';ctx.lineCap='round';
+      ctx.beginPath();
+      tr.pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+      ctx.stroke();
+      const end=tr.pts[tr.pts.length-1];
+      const pulse=0.6+0.4*Math.sin(t*2.2+tr.ph);
+      ctx.restore();
+      const ex=cx+end[0]*Math.cos(rot)-end[1]*Math.sin(rot);
+      const ey=y+end[0]*Math.sin(rot)+end[1]*Math.cos(rot);
+      glowDot(ex,ey,R*0.045*(0.8+0.4*pulse),tr.hue,0.55+0.3*pulse);
+    }
+    ctx.restore();
+
+    // kilau "AI" kecil di tengah: simpul saraf mini
+    const nr=R*0.16;
+    glowDot(cx,y,nr*0.5,265,0.8);
+    for(let i=0;i<6;i++){
+      const a=(i/6)*TAU+t*0.5;
+      glowDot(cx+Math.cos(a)*nr,y+Math.sin(a)*nr,R*0.02,220+i*12,0.6);
+    }
+  }
+
+  let t=0;
+  function frame(){
+    t+=1/60;
+    ctx.clearRect(0,0,W,H);
+    // partikel
+    for(const p of P){
+      p.y-=p.vy;p.ph+=p.sp;
+      const x=p.x+Math.sin(p.ph)*p.sw;
+      if(p.y<-20)Object.assign(p,mkP(false));
+      glowDot(x,p.y,p.r,p.hue,p.a);
+    }
+    drawCookie(t);
+    requestAnimationFrame(frame);
+  }
+
+  resize();seedP();frame();
+})();
+</script>
+</body>
+</html>
