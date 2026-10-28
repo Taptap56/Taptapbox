@@ -1,6 +1,11 @@
 #!/bin/sh
-# build.sh — build backend Go (arm64) & paket modul Magisk TaptapBox.
-# CATATAN: hanya arm64. Toolchain Go tanpa NDK tidak bisa link android/arm.
+# build.sh — build backend Go (arm64 + armv7/v7a) & paket modul Magisk TaptapBox.
+# CATATAN: android/arm (32-bit) TIDAK bisa di-link internal oleh Go —
+# butuh compiler NDK (armv7a-linux-androideabi21-clang). Cari otomatis
+# lewat V7A_CC, lalu ANDROID_NDK_LATEST_HOME / ANDROID_NDK_HOME
+# (GitHub runner sudah punya NDK). Tanpa NDK, build v7a dilewati
+# dengan peringatan dan hanya zip arm64 yang dibuat — workflow GitHub
+# wajib memverifikasi kedua zip ada, jadi di sana NDK hilang = gagal.
 #
 # Aset eksternal (tidak ikut repo source) ditaruh di ../assets/:
 #   (library) sing-box 1.14.3 tertanam di biner taptapbox — tidak ada aset sing-box lagi
@@ -14,7 +19,7 @@
 # TaptapBox SLIM: geodata/zashboard/scrcpy TIDAK dibundel (diunduh lewat Tentang → Download) agar file kecil; sing-box adalah library di dalam biner taptapbox, bukan biner terpisah.
 # FULL=0 = SLIM (bawaan TaptapBox). FULL=1 hanya bila geodata+zashboard+scrcpy memang mau dibundel.
 #
-# Hasil: dist/taptapbox-$VER.zip (siap flash)
+# Hasil: dist/taptapbox-$VER-arm64.zip + dist/taptapbox-$VER-v7a.zip (siap flash)
 #      + dist/taptapbox-$VER-source.zip (slim: tanpa zashboard & geodata)
 set -e
 cd "$(dirname "$0")"
@@ -57,6 +62,30 @@ if [ "$FULL" = "1" ]; then
   printf '%s\n' "5.0.1" > module/bin/arm64/scrcpy-server.version
 fi
 chmod 755 module/bin/arm64/*
+
+echo "== backend: android/arm (v7a) =="
+rm -rf module/bin/armv7 && mkdir -p module/bin/armv7
+V7A_CC="${V7A_CC:-}"
+if [ -z "$V7A_CC" ]; then
+  for _NDK in "$ANDROID_NDK_LATEST_HOME" "$ANDROID_NDK_HOME"; do
+    if [ -n "$_NDK" ] && [ -x "$_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang" ]; then
+      V7A_CC="$_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang"
+      break
+    fi
+  done
+fi
+if [ -n "$V7A_CC" ]; then
+  (cd backend && CGO_ENABLED=1 CC="$V7A_CC" GOOS=android GOARCH=arm GOARM=7 "$GO" build -trimpath -tags "with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api" -ldflags "-s -w -X main.appVersion=$VER" -o ../module/bin/armv7/taptapbox .)
+  echo "v7a OK: $V7A_CC"
+  if [ "$FULL" = "1" ]; then
+    cp -f "$SCRCPY_JAR" module/bin/armv7/scrcpy-server.jar
+    printf '%s\n' "5.0.1" > module/bin/armv7/scrcpy-server.version
+  fi
+  chmod 755 module/bin/armv7/*
+else
+  echo "WARNING: compiler NDK v7a tidak ditemukan (V7A_CC / ANDROID_NDK_* kosong) — zip v7a dilewati, hanya arm64 yang dibuat"
+  rm -rf module/bin/armv7
+fi
 
 echo "== webui =="
 rm -rf module/webui
@@ -109,11 +138,17 @@ else
   rm -rf module/geodata
 fi
 
-echo "== paket zip =="
+echo "== paket zip (arm64 + v7a) =="
 mkdir -p dist
-rm -f "dist/taptapbox-$VER.zip"
-(cd module && zip -r -9 "../dist/taptapbox-$VER.zip" . -x '*.DS_Store')
-ls -la "dist/taptapbox-$VER.zip"
+rm -f "dist/taptapbox-$VER-arm64.zip" "dist/taptapbox-$VER-v7a.zip"
+(cd module && zip -r -9 "../dist/taptapbox-$VER-arm64.zip" . -x '*.DS_Store' 'bin/armv7/*' 'bin/armv7')
+ls -la "dist/taptapbox-$VER-arm64.zip"
+if [ -f module/bin/armv7/taptapbox ]; then
+  (cd module && zip -r -9 "../dist/taptapbox-$VER-v7a.zip" . -x '*.DS_Store' 'bin/arm64/*' 'bin/arm64')
+  ls -la "dist/taptapbox-$VER-v7a.zip"
+else
+  echo "zip v7a dilewati (biner v7a tidak ada)"
+fi
 
 echo "== source zip (slim: tanpa zashboard, geodata, biner) =="
 rm -f "dist/taptapbox-$VER-source.zip"
