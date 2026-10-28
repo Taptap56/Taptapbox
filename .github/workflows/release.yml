@@ -119,25 +119,36 @@ jobs:
           (cd backend && go vet -tags "with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api" ./...)
           (cd backend && go test -tags "with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api" ./...)
 
-      - name: Build modul SLIM
+      - name: Cek NDK v7a (wajib, jangan sampai v7a diam-diam dilewati)
+        run: |
+          CLANG="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang"
+          [ -x "$CLANG" ] || { echo "NDK clang v7a tidak ditemukan: $CLANG"; exit 1; }
+          echo "NDK v7a OK: $CLANG"
+
+      - name: Build modul SLIM (arm64 + v7a)
         run: |
           sh build.sh
           ls -la dist/
-          cp "dist/taptapbox-$MODULE_VER.zip" "dist/taptapbox-go-$MODULE_VER.zip"
-          ls -la "dist/taptapbox-go-$MODULE_VER.zip"
+          cp "dist/taptapbox-$MODULE_VER-arm64.zip" "dist/taptapbox-go-$MODULE_VER-arm64.zip"
+          cp "dist/taptapbox-$MODULE_VER-v7a.zip" "dist/taptapbox-go-$MODULE_VER-v7a.zip"
+          ls -la "dist/taptapbox-go-$MODULE_VER-arm64.zip" "dist/taptapbox-go-$MODULE_VER-v7a.zip"
 
-      - name: Verifikasi isi zip
+      - name: Verifikasi isi kedua zip
         run: |
-          unzip -l "dist/taptapbox-go-$MODULE_VER.zip" | grep -E 'bin/arm64/taptapbox$|module.prop$'
-          unzip -p "dist/taptapbox-go-$MODULE_VER.zip" module.prop | grep -E "^version=$MODULE_VER$"
+          unzip -l "dist/taptapbox-go-$MODULE_VER-arm64.zip" | grep -E 'bin/arm64/taptapbox$|module.prop$'
+          unzip -p "dist/taptapbox-go-$MODULE_VER-arm64.zip" module.prop | grep -E "^version=$MODULE_VER$"
+          unzip -l "dist/taptapbox-go-$MODULE_VER-v7a.zip" | grep -E 'bin/armv7/taptapbox$|module.prop$'
+          unzip -p "dist/taptapbox-go-$MODULE_VER-v7a.zip" module.prop | grep -E "^version=$MODULE_VER$"
 
       - name: Terbitkan Release v1.0.0 (timpa bila sudah ada)
         run: |
           gh release delete "$MODULE_VER" --yes || true
-          gh release create "$MODULE_VER" "dist/taptapbox-go-$MODULE_VER.zip" \
+          gh release create "$MODULE_VER" "dist/taptapbox-go-$MODULE_VER-arm64.zip" "dist/taptapbox-go-$MODULE_VER-v7a.zip" \
             --title "TaptapBox-Go $MODULE_VER" \
-            --notes "Modul TaptapBox-Go $MODULE_VER (fungsi = TaptapBox lokal v1.1.0, dinomori ulang ke v1.0.0 untuk rilis GitHub) dengan library sing-box $CORE_VER tertanam di dalam biner taptapbox.
+            --notes "Modul TaptapBox-Go $MODULE_VER (fungsi = TaptapBox lokal v1.1.2, dinomori ulang ke v1.0.0 untuk rilis GitHub) dengan library sing-box $CORE_VER tertanam di dalam biner taptapbox.
 
-          Cara pakai: flash zip ini di Magisk timpa instalasi lama (tanpa uninstall supaya data/config tidak hilang), reboot, lalu cek WebUI Tentang -> Core sing-box (library) harus menunjukkan $CORE_VER. Geodata, zashboard, dan scrcpy tetap diunduh lewat Tentang -> Download sesudah reboot bila belum terpasang.
+          DUA FILE di rilis ini, pilih sesuai HP: taptapbox-go-$MODULE_VER-arm64.zip untuk HP 64-bit (kebanyakan HP modern), taptapbox-go-$MODULE_VER-v7a.zip untuk HP 32-bit lama (armeabi-v7a). Salah pilih = installer menolak di awal, tidak merusak data.
+
+          Cara pakai: flash zip yang sesuai di Magisk timpa instalasi lama (tanpa uninstall supaya data/config tidak hilang), reboot, lalu cek WebUI Tentang -> Core sing-box (library) harus menunjukkan $CORE_VER. Geodata, zashboard, dan scrcpy tetap diunduh lewat Tentang -> Download sesudah reboot bila belum terpasang.
 
           id modul, data, port 5056, dan path WebUI tidak berubah dari TaptapBox lokal. Mau core versi lain? Fork repo ini, lalu Run workflow sendiri dan pilih versinya."
