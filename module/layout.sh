@@ -66,6 +66,7 @@ ensure_layout() {
   [ -z "$_ARCH" ] && _ARCH=$(uname -m 2>/dev/null)
   case "$_ARCH" in
     arm64-v8a|aarch64) _LL_BA=arm64 ;;
+    armeabi-v7a|armeabi|armv7l|armv7|arm) _LL_BA=armv7 ;;
     *) _LL_BA="" ;;
   esac
 
@@ -111,7 +112,7 @@ ensure_layout() {
       rm -rf "$_LL_MODDIR/bin"
     fi
   else
-    _ll_say "! arsitektur tidak dikenal: $_ARCH (butuh arm64)"
+    _ll_say "! arsitektur tidak dikenal: $_ARCH (butuh arm64 atau v7a)"
   fi
 
   # --- WebUI: SELALU diganti dengan WebUI baru dari modul (backend+WebUI harus sinkron),
