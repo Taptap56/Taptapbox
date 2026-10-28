@@ -8,8 +8,8 @@
 # (di halaman run itu sendiri, bagian Artifacts, di bawah).
 # Nama artifact: taptapbox-go-singbox-<versi-core>
 #   contoh: taptapbox-go-singbox-1.14.2
-# Isinya: satu zip modul Magisk SLIM siap flash, namanya
-#   taptapbox-go-v1.0.0-singbox-<versi-core>.zip
+# Isinya: DUA zip modul Magisk SLIM siap flash (pilih sesuai HP):
+#   taptapbox-go-v1.0.0-arm64.zip dan taptapbox-go-v1.0.0-v7a.zip
 #
 # PAKAI WORKFLOW INI UNTUK:
 # - nyoba versi core lain (mis. 1.14.4, 1.14.2, 1.13.x),
@@ -113,22 +113,33 @@ jobs:
           (cd backend && go vet -tags "with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api" ./...)
           (cd backend && go test -tags "with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api" ./...)
 
-      - name: Build modul SLIM
+      - name: Cek NDK v7a (wajib, jangan sampai v7a diam-diam dilewati)
+        run: |
+          CLANG="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang"
+          [ -x "$CLANG" ] || { echo "NDK clang v7a tidak ditemukan: $CLANG"; exit 1; }
+          echo "NDK v7a OK: $CLANG"
+
+      - name: Build modul SLIM (arm64 + v7a)
         run: |
           sh build.sh
           ls -la dist/
-          cp "dist/taptapbox-$MODULE_VER.zip" "dist/$ASSET"
-          ls -la "dist/$ASSET"
+          cp "dist/taptapbox-$MODULE_VER-arm64.zip" "dist/taptapbox-go-$MODULE_VER-arm64.zip"
+          cp "dist/taptapbox-$MODULE_VER-v7a.zip" "dist/taptapbox-go-$MODULE_VER-v7a.zip"
+          ls -la "dist/taptapbox-go-$MODULE_VER-arm64.zip" "dist/taptapbox-go-$MODULE_VER-v7a.zip"
 
-      - name: Verifikasi isi zip
+      - name: Verifikasi isi kedua zip
         run: |
-          unzip -l "dist/$ASSET" | grep -E 'bin/arm64/taptapbox$|module.prop$'
-          unzip -p "dist/$ASSET" module.prop | grep -E "^version=$MODULE_VER$"
+          unzip -l "dist/taptapbox-go-$MODULE_VER-arm64.zip" | grep -E 'bin/arm64/taptapbox$|module.prop$'
+          unzip -p "dist/taptapbox-go-$MODULE_VER-arm64.zip" module.prop | grep -E "^version=$MODULE_VER$"
+          unzip -l "dist/taptapbox-go-$MODULE_VER-v7a.zip" | grep -E 'bin/armv7/taptapbox$|module.prop$'
+          unzip -p "dist/taptapbox-go-$MODULE_VER-v7a.zip" module.prop | grep -E "^version=$MODULE_VER$"
 
       - name: Upload ke Artifact (bukan Release)
         uses: actions/upload-artifact@v4
         with:
           name: taptapbox-go-singbox-${{ env.CORE_VER }}
-          path: dist/${{ env.ASSET }}
+          path: |
+            dist/taptapbox-go-${{ env.MODULE_VER }}-arm64.zip
+            dist/taptapbox-go-${{ env.MODULE_VER }}-v7a.zip
           retention-days: 90
           if-no-files-found: error
