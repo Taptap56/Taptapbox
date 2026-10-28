@@ -1,6 +1,6 @@
 # Rilis GitHub TaptapBox-Go (sederhana)
 
-Paket ini = TaptapBox lokal v1.1.0, dinomori ulang ke **v1.0.0 /
+Paket ini = TaptapBox lokal v1.1.2, dinomori ulang ke **v1.0.0 /
 versionCode 1** untuk rilis GitHub, sama seperti pola TaptapApp
 kemarin. Fungsi sama. Yang tidak berubah: id modul (`taptapbox`),
 data (`/data/adb/taptapbox`), port WebUI (5056), path WebUI
@@ -49,7 +49,7 @@ lain? Fork repo ini, Run workflow sendiri, pilih versinya.
 Flash zip di Magisk timpa instalasi lama (tanpa uninstall),
 reboot, cek Tentang -> Core sing-box (library). Geodata,
 zashboard, scrcpy diunduh lewat Tentang -> Download bila belum
-terpasang. VersionCode turun 2 -> 1, jadi Magisk bisa menganggap
+terpasang. VersionCode turun 4 -> 1, jadi Magisk bisa menganggap
 ini downgrade, tapi flash manual timpa tetap jalan dan data
 tidak hilang karena id modul sama.
 
