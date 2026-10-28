@@ -1,0 +1,6 @@
+id=taptapbox
+name=TaptapBox-Go
+version=v1.0.0
+versionCode=1
+author=@TapTap_56
+description=🐱 TaptapBox — transparent proxy sing-box library tertanam (tanpa biner sing-box terpisah) + WebUI Config/Override/Manual untuk Magisk. Buka WebUI: http://127.0.0.1:5056
