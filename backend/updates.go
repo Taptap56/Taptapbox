@@ -33,6 +33,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -57,19 +58,65 @@ const updateCacheTTL = time.Hour
 // ghRelease: subset respons GitHub releases/latest yang dipakai.
 // Draft/Prerelease dipakai daftar versi (v1.0.42): hanya rilis final
 // yang ditawarkan ke pemilih versi.
+type ghAsset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+	Size               int64  `json:"size"`
+}
+
 type ghRelease struct {
-	TagName     string `json:"tag_name"`
-	Name        string `json:"name"`
-	Body        string `json:"body"`
-	HTMLURL     string `json:"html_url"`
-	PublishedAt string `json:"published_at"`
-	Draft       bool   `json:"draft"`
-	Prerelease  bool   `json:"prerelease"`
-	Assets      []struct {
-		Name               string `json:"name"`
-		BrowserDownloadURL string `json:"browser_download_url"`
-		Size               int64  `json:"size"`
-	} `json:"assets"`
+	TagName     string   `json:"tag_name"`
+	Name        string   `json:"name"`
+	Body        string   `json:"body"`
+	HTMLURL     string   `json:"html_url"`
+	PublishedAt string   `json:"published_at"`
+	Draft       bool     `json:"draft"`
+	Prerelease  bool     `json:"prerelease"`
+	Assets      []ghAsset `json:"assets"`
+}
+
+// selfReleaseArchSuffix: akhiran aset instalasi untuk arsitektur HP ini.
+// arm64 -> "arm64", arm 32-bit -> "v7a", arsitektur lain -> "" (fallback
+// ke aset tanpa akhiran, seperti rilis lama).
+func selfReleaseArchSuffix(goarch string) string {
+	switch goarch {
+	case "arm64":
+		return "arm64"
+	case "arm":
+		return "v7a"
+	default:
+		return ""
+	}
+}
+
+// pickSelfReleaseAsset: pilih aset instalasi dari rilis sendiri.
+// Urutan: aset sesuai arsitektur HP dulu, lalu aset tanpa akhiran
+// (rilis lama satu file), lalu aset taptapbox-*.zip pertama, lalu
+// aset pertama apa pun. Nama dan ukuran dikembalikan, "" bila kosong.
+func pickSelfReleaseAsset(rel *ghRelease, goarch string) (string, int64, string) {
+	arch := selfReleaseArchSuffix(goarch)
+	var wants []string
+	if arch != "" {
+		wants = append(wants, "taptapbox-go-"+rel.TagName+"-"+arch+".zip", "taptapbox-"+rel.TagName+"-"+arch+".zip")
+	}
+	wants = append(wants, "taptapbox-go-"+rel.TagName+".zip", "taptapbox-"+rel.TagName+".zip")
+	for _, want := range wants {
+		for _, as := range rel.Assets {
+			if as.Name == want {
+				return as.Name, as.Size, as.BrowserDownloadURL
+			}
+		}
+	}
+	for _, as := range rel.Assets {
+		if strings.HasSuffix(as.Name, ".zip") && strings.HasPrefix(as.Name, "taptapbox-") {
+			return as.Name, as.Size, as.BrowserDownloadURL
+		}
+	}
+	if len(rel.Assets) > 0 {
+		as := rel.Assets[0]
+		return as.Name, as.Size, as.BrowserDownloadURL
+	}
+	return "", 0, ""
 }
 
 // stripTag: "v1.19.33" -> "1.19.33" (spasi dipangkas dulu, baru prefix).
@@ -558,8 +605,8 @@ func (a *App) handleUpdates(w http.ResponseWriter, r *http.Request) {
 // GitHub releases/latest lewat rantai yang sama dengan cek core
 // (proksi core -> helper non-root -> direct), jadi jalan di jalur yang
 // sama dengan kotak Download. Aset yang ditawarkan = zip instalasi
-// (taptapbox-go-<tag>.zip dulu, lalu taptapbox-<tag>.zip, lalu
-// aset .zip taptapbox- pertama);
+// (aset sesuai arsitektur HP dulu, lalu aset tanpa akhiran,
+// lalu aset .zip taptapbox- pertama);
 // Source code (zip/tar.gz) yang selalu ditambahkan GitHub TIDAK
 // ditawarkan — itu arsip source repo, bukan paket instalasi.
 // Gagal cek TIDAK jadi 500: WebUI tetap menampilkan tombol fallback
@@ -619,32 +666,10 @@ func (a *App) handleSelfRelease(w http.ResponseWriter, r *http.Request) {
 		Body:        rel.Body,
 		HTMLURL:     rel.HTMLURL,
 	}
-	// Aset instalasi, urutan prioritas: paket GitHub dulu
-	// (taptapbox-go-<tag>.zip), lalu paket lokal (taptapbox-<tag>.zip).
-	// Keduanya sama fungsi; yang GitHub yang sedang diterbitkan.
-	for _, want := range []string{"taptapbox-go-" + rel.TagName + ".zip", "taptapbox-" + rel.TagName + ".zip"} {
-		for _, as := range rel.Assets {
-			if as.Name == want {
-				out.AssetName, out.AssetSize, out.AssetURL = as.Name, as.Size, as.BrowserDownloadURL
-				break
-			}
-		}
-		if out.AssetURL != "" {
-			break
-		}
-	}
-	if out.AssetURL == "" {
-		for _, as := range rel.Assets {
-			if strings.HasSuffix(as.Name, ".zip") && strings.HasPrefix(as.Name, "taptapbox-") {
-				out.AssetName, out.AssetSize, out.AssetURL = as.Name, as.Size, as.BrowserDownloadURL
-				break
-			}
-		}
-	}
-	if out.AssetURL == "" && len(rel.Assets) > 0 {
-		as := rel.Assets[0]
-		out.AssetName, out.AssetSize, out.AssetURL = as.Name, as.Size, as.BrowserDownloadURL
-	}
+	// Aset instalasi dipilih sesuai arsitektur HP (runtime.GOARCH),
+	// supaya HP arm64 tidak dapat zip v7a dan sebaliknya. Rilis lama
+	// satu file tetap didukung sebagai fallback.
+	out.AssetName, out.AssetSize, out.AssetURL = pickSelfReleaseAsset(rel, runtime.GOARCH)
 	a.updMu.Lock()
 	a.selfRelCache = &selfRelCache{at: time.Now(), out: out}
 	a.updMu.Unlock()
