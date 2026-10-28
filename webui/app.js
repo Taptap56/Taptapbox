@@ -1340,7 +1340,7 @@ function vAbout() {
 // seperti Download, ?refresh=1 memaksa cek segar); tombol Download
 // mengarah ke aset zip instalasi rilis terbaru, tombol Lihat di GitHub
 // mengarah ke halaman rilis itu. Bila cek gagal, tetap tampil tombol
-// ke https://github.com/Taptap56/Taptapapp/releases/latest, yang selalu
+// ke https://github.com/Taptap56/Taptapbox/releases/latest, yang selalu
 // meneruskan ke rilis terbaru — jadi tombol tidak pernah buntu.
 async function loadSelfRelease(force) {
   const wrap = $('#relWrap');
@@ -1350,7 +1350,7 @@ async function loadSelfRelease(force) {
   // maupun error fetch — tombol ini selalu ada, jadi tidak perlu
   // keluar-masuk Tentang untuk cek ulang.
   const attachRefresh = () => { const b = wrap.querySelector('#relRefresh'); if (b) b.onclick = () => loadSelfRelease(true); };
-  const fallback = `<div class="hint">Gagal memeriksa rilis terbaru.</div><div class="lnks"><a class="btn small primary" href="https://github.com/Taptap56/Taptapapp/releases/latest" target="_blank" rel="noopener">Lihat rilis terbaru</a><button class="btn small" id="relRefresh">Periksa lagi</button></div>`;
+  const fallback = `<div class="hint">Gagal memeriksa rilis terbaru.</div><div class="lnks"><a class="btn small primary" href="https://github.com/Taptap56/Taptapbox/releases/latest" target="_blank" rel="noopener">Lihat rilis terbaru</a><button class="btn small" id="relRefresh">Periksa lagi</button></div>`;
   try {
     const d = await api('/api/release/latest' + (force ? '?refresh=1' : ''));
     if (!d || d.error || !d.tag) { wrap.innerHTML = fallback; attachRefresh(); return; }
@@ -1364,7 +1364,7 @@ async function loadSelfRelease(force) {
     const btns = [];
     if (d.asset_url) btns.push(`<a class="btn small primary" href="${esc(d.asset_url)}" target="_blank" rel="noopener">Download</a>`);
     if (d.html_url) btns.push(`<a class="btn small" href="${esc(d.html_url)}" target="_blank" rel="noopener">Lihat di GitHub</a>`);
-    btns.push(`<a class="btn small" href="https://github.com/Taptap56/Taptapapp/releases/latest" target="_blank" rel="noopener">Rilis terbaru</a>`);
+    btns.push(`<a class="btn small" href="https://github.com/Taptap56/Taptapbox/releases/latest" target="_blank" rel="noopener">Rilis terbaru</a>`);
     // Semua tombol di satu baris .lnks yang sama (flex:1), jadi lebarnya
     // sama rata — termasuk Periksa lagi, bukan tombol kecil terpisah.
     btns.push(`<button class="btn small" id="relRefresh">Periksa lagi</button>`);
