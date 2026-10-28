@@ -1100,7 +1100,7 @@ func TestCheckUpdatesZashboard(t *testing.T) {
 
 func TestHandleSelfReleaseFakeGitHub(t *testing.T) {
 	f := newFakeGitHub(t)
-	f.tags["Taptap56/Taptapapp"] = "v1.0.0"
+	f.tags["Taptap56/Taptapbox"] = "v1.0.0"
 	f.assets["/assets/taptapbox-v1.0.0.zip"] = []byte("zip-palsu")
 	old := githubAPI
 	githubAPI = f.srv.URL
@@ -1122,9 +1122,33 @@ func TestHandleSelfReleaseFakeGitHub(t *testing.T) {
 	}
 }
 
+
+func TestHandleSelfReleaseGoAsset(t *testing.T) {
+	// Repo Taptapbox menerbitkan aset taptapbox-go-<tag>.zip (bukan
+	// taptapbox-<tag>.zip): kartu Rilis harus menawarkan aset itu.
+	f := newFakeGitHub(t)
+	f.tags["Taptap56/Taptapbox"] = "v1.0.0"
+	f.assets["/assets/taptapbox-go-v1.0.0.zip"] = []byte("zip-palsu")
+	old := githubAPI
+	githubAPI = f.srv.URL
+	t.Cleanup(func() { githubAPI = old })
+
+	a := &App{dataDir: t.TempDir()}
+	req := httptest.NewRequest("GET", "/api/release/latest", nil)
+	rec := httptest.NewRecorder()
+	a.handleSelfRelease(rec, req)
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d, body %s", rec.Code, body)
+	}
+	if !strings.Contains(body, `"tag":"v1.0.0"`) || !strings.Contains(body, "taptapbox-go-v1.0.0.zip") {
+		t.Fatalf("rilis Taptapbox harus memuat tag + aset go zip: %s", body)
+	}
+}
+
 func TestHandleSelfReleaseCacheRefresh(t *testing.T) {
 	f := newFakeGitHub(t)
-	f.tags["Taptap56/Taptapapp"] = "v1.0.0"
+	f.tags["Taptap56/Taptapbox"] = "v1.0.0"
 	f.assets["/assets/taptapbox-v1.0.0.zip"] = []byte("zip-palsu")
 	old := githubAPI
 	githubAPI = f.srv.URL
@@ -1143,7 +1167,7 @@ func TestHandleSelfReleaseCacheRefresh(t *testing.T) {
 		t.Fatalf("panggilan pertama harus v1.0.0: %s", got)
 	}
 	// Tag berubah di server, tapi cache 1 jam masih mengembalikan yang lama.
-	f.tags["Taptap56/Taptapapp"] = "v1.0.1"
+	f.tags["Taptap56/Taptapbox"] = "v1.0.1"
 	if got := call("/api/release/latest"); !strings.Contains(got, `"tag":"v1.0.0"`) {
 		t.Fatalf("panggilan kedua harus dari cache v1.0.0, dapat %s", got)
 	}
