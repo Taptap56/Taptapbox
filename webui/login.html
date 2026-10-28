@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#0b0e1a">
+<title>Masuk — TaptapBox</title>
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #e8ecf8;
+    display: flex; align-items: center; justify-content: center;
+    background:
+      radial-gradient(1200px 800px at 20% 10%, rgba(88,60,180,.35), transparent 60%),
+      radial-gradient(1000px 700px at 85% 80%, rgba(20,140,160,.25), transparent 60%),
+      #0b0e1a;
+    min-height: 100vh; padding: 24px;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .5;
+    background-image:
+      radial-gradient(2px 2px at 12% 22%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 78% 12%, #fff, transparent),
+      radial-gradient(2px 2px at 65% 68%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 32% 78%, #fff, transparent),
+      radial-gradient(2px 2px at 88% 42%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 45% 32%, #fff, transparent);
+  }
+  .box {
+    position: relative; width: 100%; max-width: 340px; text-align: center;
+    background: rgba(16,20,38,.82); border: 1px solid rgba(255,255,255,.09);
+    border-radius: 20px; padding: 36px 28px 30px;
+    box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  }
+  .logo { width: 112px; height: 112px; border-radius: 28px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  h1 { font-size: 26px; font-weight: 700; margin: 16px 0 4px; letter-spacing: .3px; }
+  h1 .go { color: #34d399; }
+  .sub { color: #9aa3c0; font-size: 13px; margin-bottom: 22px; }
+  input {
+    width: 100%; padding: 13px 15px; font-size: 16px; color: #e8ecf8;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+    border-radius: 12px; outline: none; text-align: center; letter-spacing: 2px;
+  }
+  input:focus { border-color: #2dd4bf; box-shadow: 0 0 0 3px rgba(45,212,191,.18); }
+  button {
+    width: 100%; margin-top: 14px; padding: 13px; font-size: 16px; font-weight: 700;
+    color: #06251f; background: linear-gradient(135deg, #2dd4bf, #34d399);
+    border: 0; border-radius: 12px; cursor: pointer;
+  }
+  button:active { transform: scale(.98); }
+  button:disabled { opacity: .6; }
+  .err {
+    display: none; margin-top: 12px; font-size: 13px; color: #ff8a8a;
+    background: rgba(255,80,80,.1); border: 1px solid rgba(255,80,80,.3);
+    border-radius: 10px; padding: 9px;
+  }
+  .err.show { display: block; animation: shake .3s; }
+  @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+  .foot { margin-top: 18px; font-size: 11px; color: #6b7390; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <img class="logo" src="icons/icon-192.png" alt="TaptapBox">
+    <h1>TaptapBox</h1>
+    <div class="sub">Masukkan password untuk masuk</div>
+    <form id="f" autocomplete="off">
+      <input id="p" type="password" placeholder="Password" autocomplete="current-password">
+      <button id="b" type="submit">Masuk</button>
+    </form>
+    <div class="err" id="e">Password salah, coba lagi.</div>
+    <div class="foot">Cukup sekali — setelah ini langsung masuk otomatis.</div>
+  </div>
+<script>
+  var f = document.getElementById('f'), p = document.getElementById('p'),
+      b = document.getElementById('b'), e = document.getElementById('e');
+  p.focus();
+  f.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    e.classList.remove('show');
+    b.disabled = true; b.textContent = 'Memeriksa…';
+    fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: p.value })
+    }).then(function (r) {
+      if (r.ok) { location.href = '/taptapbox/'; return; }
+      throw 0;
+    }).catch(function () {
+      e.classList.add('show');
+      b.disabled = false; b.textContent = 'Masuk';
+      p.select();
+    });
+  });
+</script>
+</body>
+</html>
