@@ -553,16 +553,17 @@ func (a *App) handleUpdates(w http.ResponseWriter, r *http.Request) {
 }
 
 // selfRelease: respons GET /api/release/latest — kartu "Rilis terbaru"
-// di Tentang. Repo-nya repo modul ini sendiri (Taptap56/Taptapapp),
+// di Tentang. Repo-nya repo modul ini sendiri (Taptap56/Taptapbox),
 // bukan repo core: tag/nama/tanggal/body/URL halaman rilis diambil dari
 // GitHub releases/latest lewat rantai yang sama dengan cek core
 // (proksi core -> helper non-root -> direct), jadi jalan di jalur yang
 // sama dengan kotak Download. Aset yang ditawarkan = zip instalasi
-// (taptapbox-<tag>.zip bila ada, kalau tidak aset .zip pertama);
+// (taptapbox-go-<tag>.zip dulu, lalu taptapbox-<tag>.zip, lalu
+// aset .zip taptapbox- pertama);
 // Source code (zip/tar.gz) yang selalu ditambahkan GitHub TIDAK
 // ditawarkan — itu arsip source repo, bukan paket instalasi.
 // Gagal cek TIDAK jadi 500: WebUI tetap menampilkan tombol fallback
-// ke https://github.com/Taptap56/Taptapapp/releases/latest, yang
+// ke https://github.com/Taptap56/Taptapbox/releases/latest, yang
 // selalu meneruskan ke rilis terbaru.
 type selfRelease struct {
 	Current     string `json:"current"`
@@ -601,7 +602,7 @@ func (a *App) handleSelfRelease(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	rel, err := a.fetchRelease("Taptap56/Taptapapp")
+	rel, err := a.fetchRelease("Taptap56/Taptapbox")
 	if err != nil {
 		out := selfRelease{Current: appVersion, Error: err.Error()}
 		a.updMu.Lock()
@@ -618,10 +619,17 @@ func (a *App) handleSelfRelease(w http.ResponseWriter, r *http.Request) {
 		Body:        rel.Body,
 		HTMLURL:     rel.HTMLURL,
 	}
-	want := "taptapbox-" + rel.TagName + ".zip"
-	for _, as := range rel.Assets {
-		if as.Name == want {
-			out.AssetName, out.AssetSize, out.AssetURL = as.Name, as.Size, as.BrowserDownloadURL
+	// Aset instalasi, urutan prioritas: paket GitHub dulu
+	// (taptapbox-go-<tag>.zip), lalu paket lokal (taptapbox-<tag>.zip).
+	// Keduanya sama fungsi; yang GitHub yang sedang diterbitkan.
+	for _, want := range []string{"taptapbox-go-" + rel.TagName + ".zip", "taptapbox-" + rel.TagName + ".zip"} {
+		for _, as := range rel.Assets {
+			if as.Name == want {
+				out.AssetName, out.AssetSize, out.AssetURL = as.Name, as.Size, as.BrowserDownloadURL
+				break
+			}
+		}
+		if out.AssetURL != "" {
 			break
 		}
 	}
