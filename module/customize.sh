@@ -17,11 +17,12 @@ _VER=$(grep -E '^version=' "$MODPATH/module.prop" 2>/dev/null | cut -d= -f2)
 ui_print "- Versi  : $_VER"
 ui_print "- MODPATH: $MODPATH"
 
-# Binary hanya tersedia untuk arm64: gagal di awal, jangan diam-diam.
+# Binary tersedia untuk arm64 dan v7a (Magisk: ARCH=arm64 / arm):
+# gagal di awal bila arsitektur lain, jangan diam-diam.
 # (ARCH diisi oleh installer; bila kosong, layout.sh tetap memeriksa saat boot.)
 case "$ARCH" in
-  ""|arm64) ;;
-  *) abort "! Arsitektur $ARCH tidak didukung (butuh arm64)" ;;
+  ""|arm64|arm) ;;
+  *) abort "! Arsitektur $ARCH tidak didukung (butuh arm64 atau v7a)" ;;
 esac
 
 # Logika tata-letak bersama (juga dijalankan tiap boot oleh service.sh,
